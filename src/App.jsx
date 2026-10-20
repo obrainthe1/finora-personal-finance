@@ -1,0 +1,28 @@
+import { useEffect, useMemo, useState } from "react";
+const KEY = "finora-transactions-v1";
+const money = n => new Intl.NumberFormat("en-ZM", { style:"currency", currency:"ZMW", maximumFractionDigits:2 }).format(n);
+const initial = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; } };
+export default function App() {
+  const [items,setItems] = useState(initial);
+  const [type,setType] = useState("expense");
+  const [amount,setAmount] = useState("");
+  const [category,setCategory] = useState("General");
+  const [note,setNote] = useState("");
+  const [date,setDate] = useState(new Date().toISOString().slice(0,10));
+  const [filter,setFilter] = useState("all");
+  useEffect(()=>{ localStorage.setItem(KEY,JSON.stringify(items)); },[items]);
+  const income = useMemo(()=>items.filter(x=>x.type==="income").reduce((s,x)=>s+x.amount,0),[items]);
+  const expenses = useMemo(()=>items.filter(x=>x.type==="expense").reduce((s,x)=>s+x.amount,0),[items]);
+  const add = e => { e.preventDefault(); const value=Number(amount); if(!Number.isFinite(value)||value<=0)return; setItems(old=>[{id:crypto.randomUUID?.()||String(Date.now()),type,amount:value,category,note:note.trim(),date},...old]); setAmount("");setNote(""); };
+  const shown = items.filter(x=>filter==="all"||x.type===filter);
+  const exportData = () => { const blob=new Blob([JSON.stringify(items,null,2)],{type:"application/json"}); const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="finora-backup.json";a.click();URL.revokeObjectURL(a.href); };
+  const importData = e => { const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();r.onload=()=>{try{const v=JSON.parse(r.result);if(Array.isArray(v)&&v.every(x=>x&&["income","expense"].includes(x.type)&&Number.isFinite(x.amount)))setItems(v);else alert("That backup file is not valid Finora data.");}catch{alert("Could not read that backup file.");}};r.readAsText(f);e.target.value=""; };
+  return <main className="shell">
+    <header className="top"><div className="brand"><img src="/icon.svg" alt="" /><div><h1>Finora</h1><p>Your money, in focus.</p></div></div><span className="offline"><i/> Offline-first</span></header>
+    <section className="intro"><div><p className="eyebrow">PERSONAL FINANCE</p><h2>Make your money<br/><em>work for you.</em></h2><p className="sub">A simple, private place to track your cash flow.</p></div><div className="balance"><span>Net cash flow</span><strong>{money(income-expenses)}</strong><small>Income minus expenses</small></div></section>
+    <section className="stats"><article><span>Total income</span><strong className="positive">{money(income)}</strong><small>Recorded income</small></article><article><span>Total expenses</span><strong className="negative">{money(expenses)}</strong><small>Recorded spending</small></article><article><span>Transactions</span><strong>{items.length}</strong><small>Saved on this device</small></article></section>
+    <section className="columns"><form className="panel form" onSubmit={add}><div className="sectionhead"><div><p className="eyebrow">QUICK ENTRY</p><h3>Add transaction</h3></div></div><div className="switch"><button type="button" className={type==="expense"?"active":""} onClick={()=>setType("expense")}>Expense</button><button type="button" className={type==="income"?"active":""} onClick={()=>setType("income")}>Income</button></div><label>Amount (ZMW)<input required type="number" min="0.01" step="0.01" placeholder="0.00" value={amount} onChange={e=>setAmount(e.target.value)}/></label><div className="formrow"><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}>{["General","Food","Transport","Housing","Bills","Health","Education","Shopping","Salary","Business","Savings","Other"].map(x=><option key={x}>{x}</option>)}</select></label><label>Date<input type="date" required value={date} onChange={e=>setDate(e.target.value)}/></label></div><label>Note (optional)<input value={note} onChange={e=>setNote(e.target.value)} placeholder="What was it for?"/></label><button className="primary" type="submit">+ Save transaction</button><p className="hint">Saved locally in this browser. No account required.</p></form>
+    <section className="panel history"><div className="sectionhead"><div><p className="eyebrow">YOUR ACTIVITY</p><h3>Transactions</h3></div><select aria-label="Filter transactions" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All activity</option><option value="income">Income</option><option value="expense">Expenses</option></select></div>{shown.length===0?<div className="empty"><span>↗</span><strong>No transactions yet</strong><p>Add your first income or expense to start tracking.</p></div>:<div className="entries">{shown.map(x=><div className="entry" key={x.id}><div className={"entryicon "+x.type}>{x.type==="income"?"↙":"↗"}</div><div className="entrydesc"><strong>{x.category}</strong><span>{x.note||x.type} · {x.date}</span></div><strong className={x.type==="income"?"positive":"negative"}>{x.type==="income"?"+":"−"}{money(x.amount)}</strong><button className="remove" aria-label="Delete transaction" title="Delete transaction" onClick={()=>setItems(old=>old.filter(y=>y.id!==x.id))}>×</button></div>)}</div>}<div className="backup"><button type="button" onClick={exportData}>Export backup</button><label className="filebtn">Import backup<input type="file" accept="application/json,.json" onChange={importData}/></label></div></section></section>
+    <footer><span>FINORA · PERSONAL FINANCE</span><span>Your financial data stays on this device.</span></footer>
+  </main>;
+}
